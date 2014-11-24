@@ -26,6 +26,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #include "Task.h"
 #include "Tokenizer.h"
 #include "Transforms.h"
+#include "URL.h"
 
 #if _MSC_VER
 #include "../windows/Time.h"
@@ -684,11 +685,30 @@ void IIIF::run( Session* session, const std::string& argument ){
       }
     }
 
+    // Generate our @id - use our BASE_URL environment variable if we are
+    // behind a web server rewrite function
+    string id;
+    string host = session->headers["BASE_URL"];
+    if( host.length() > 0 ){
+      string query = (session->headers["QUERY_STRING"]);
+      query = query.substr( 5, query.length()-suffix.length()-6 );
+      id = host + query;
+    }
+    else{
+      string request_uri = session->headers["REQUEST_URI"];
+      request_uri.erase( request_uri.length()-suffix.length()-1, string::npos );
+      id = "http://" + session->headers["HTTP_HOST"] + request_uri;
+    }
+    // Escape file name for JSON
+    URL json(id);
+    string iiif_id = json.Escape();
+
     std::stringstream jsonStringStream;
     if( suffix.length() > 19 ){
       jsonStringStream << suffix.substr(19,string::npos) << "(";
     }
     jsonStringStream << "{" << endl;
+    jsonStringStream << " \"@id\" : \"" << iiif_id << "\"," << endl;
     jsonStringStream << "\"identifier\" : \"" << escapedFilename << "\"," << endl;
     jsonStringStream << "\"width\" : " << width << "," << endl;
     jsonStringStream << "\"height\" : " << height << "," << endl;
