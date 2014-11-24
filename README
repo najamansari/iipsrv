@@ -124,6 +124,9 @@ CONFIGURATION:
 There are several startup variables that can be passed to the server.
 They are all optional.
 
+BASE_URL: the base URL to be used for constructing the '@id' field in the JSON
+response.
+
 LOGFILE: the server will log its output to the file specified, if it can.
 
 VERBOSITY: 0 means no logging, 1 is minimal logging, 2 lots of debugging stuff,
@@ -181,7 +184,6 @@ DECODER_MODULES: Comma separated list of external modules for decoding
 other image formats. This is only necessary if you have activated 
 --enable-modules for ./configure and written your own image format 
 handler(s).
-
 
 
 

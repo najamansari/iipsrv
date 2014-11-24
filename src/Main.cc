@@ -58,7 +58,6 @@
 
 
 
-
 //#define DEBUG 1
 
 
@@ -80,26 +79,27 @@ unsigned long IIPcount;
  */
 void IIPSignalHandler( int signal )
 {
-  if( loglevel >= 1 ){
+    if ( loglevel >= 1 )
+    {
 
-    time_t current_time = time( NULL );
-    char *date = ctime( &current_time );
+        time_t current_time = time( NULL );
+        char *date = ctime( &current_time );
 
-    // No strsignal on Windows
+        // No strsignal on Windows
 #ifdef WIN32
-    int sigstr = signal;
+        int sigstr = signal;
 #else
-    char *sigstr = strsignal( signal );
+        char *sigstr = strsignal( signal );
 #endif
 
-    logfile << endl << "Caught " << sigstr << " signal. "
-	    << "Terminating after " << IIPcount << " accesses" << endl
-	    << date
-	    << "<----------------------------------->" << endl << endl;
-    logfile.close();
-  }
+        logfile << endl << "Caught " << sigstr << " signal. "
+                << "Terminating after " << IIPcount << " accesses" << endl
+                << date
+                << "<----------------------------------->" << endl << endl;
+        logfile.close();
+    }
 
-  exit( 1 );
+    exit( 1 );
 }
 
 
@@ -109,581 +109,657 @@ void IIPSignalHandler( int signal )
 int main( int argc, char *argv[] )
 {
 
-  IIPcount = 0;
-  int i;
+    IIPcount = 0;
+    int i;
 
 
-  // Define ourselves a version
-  string version = string( VERSION );
+    // Define ourselves a version
+    string version = string( VERSION );
 
 
 
-  /*************************************************
-    Initialise some variables from our environment
-  *************************************************/
+    /*************************************************
+      Initialise some variables from our environment
+    *************************************************/
 
 
-  //  Check for a verbosity env variable and open an appendable logfile
-  //  if we want logging ie loglevel >= 0
+    //  Check for a verbosity env variable and open an appendable logfile
+    //  if we want logging ie loglevel >= 0
 
-  loglevel = Environment::getVerbosity();
+    loglevel = Environment::getVerbosity();
 
-  if( loglevel >= 1 ){
+    if ( loglevel >= 1 )
+    {
 
-    // Check for the requested log file path
-    string lf = Environment::getLogFile();
+        // Check for the requested log file path
+        string lf = Environment::getLogFile();
 
-    logfile.open( lf.c_str(), ios::app );
-    // If we cannot open this, set the loglevel to 0
-    if( !logfile ){
-      loglevel = 0;
+        logfile.open( lf.c_str(), ios::app );
+        // If we cannot open this, set the loglevel to 0
+        if ( !logfile )
+        {
+            loglevel = 0;
+        }
+
+        // Put a header marker and credit in the file
+        else
+        {
+
+            // Get current time
+            time_t current_time = time( NULL );
+            char *date = ctime( &current_time );
+
+            logfile << "<----------------------------------->" << endl
+                    << date << endl
+                    << "IIPImage Server. Version " << version << endl
+                    << "*** Ruven Pillay <ruven@users.sourceforge.net> ***" << endl << endl
+                    << "Verbosity level set to " << loglevel << endl;
+        }
+
     }
 
-    // Put a header marker and credit in the file
-    else{
-
-      // Get current time
-      time_t current_time = time( NULL );
-      char *date = ctime( &current_time );
-
-      logfile << "<----------------------------------->" << endl
-	      << date << endl
-	      << "IIPImage Server. Version " << version << endl
-	      << "*** Ruven Pillay <ruven@users.sourceforge.net> ***" << endl << endl
-	      << "Verbosity level set to " << loglevel << endl;
-    }
-
-  }
 
 
-
-  // Set up some FCGI items and make sure we are in FCGI mode
+    // Set up some FCGI items and make sure we are in FCGI mode
 
 #ifndef DEBUG
 
-  FCGX_Request request;
-  int listen_socket = 0;
-  bool standalone = false;
+    FCGX_Request request;
+    int listen_socket = 0;
+    bool standalone = false;
 
-  if( argv[1] && (string(argv[1]) == "--bind") ){
-    string socket = argv[2];
-    if( !socket.length() ){
-      logfile << "No socket specified" << endl << endl;
-      exit(1);
+    if ( argv[1] && (string(argv[1]) == "--bind") )
+    {
+        string socket = argv[2];
+        if ( !socket.length() )
+        {
+            logfile << "No socket specified" << endl << endl;
+            exit(1);
+        }
+        listen_socket = FCGX_OpenSocket( socket.c_str(), 10 );
+        if ( listen_socket < 0 )
+        {
+            logfile << "Unable to open socket '" << socket << "'" << endl << endl;
+            exit(1);
+        }
+        standalone = true;
+        logfile << "Running in standalone mode on socket: " << socket << endl << endl;
     }
-    listen_socket = FCGX_OpenSocket( socket.c_str(), 10 );
-    if( listen_socket < 0 ){
-      logfile << "Unable to open socket '" << socket << "'" << endl << endl;
-      exit(1);
-    }
-    standalone = true;
-    logfile << "Running in standalone mode on socket: " << socket << endl << endl;
-  }
 
-  if( FCGX_InitRequest( &request, listen_socket, 0 ) ) return(1);
+    if ( FCGX_InitRequest( &request, listen_socket, 0 ) ) return (1);
 
-  // Check whether we are really in FCGI mode - only if we are not in standalone mode
-  if( FCGX_IsCGI() ){
-    if( !standalone ){
-      if( loglevel >= 1 ) logfile << "CGI-only mode detected" << endl << endl;
-      return( 1 );
+    // Check whether we are really in FCGI mode - only if we are not in standalone mode
+    if ( FCGX_IsCGI() )
+    {
+        if ( !standalone )
+        {
+            if ( loglevel >= 1 ) logfile << "CGI-only mode detected" << endl << endl;
+            return ( 1 );
+        }
     }
-  }
-  else{
-    if( loglevel >= 1 ) logfile << "Running in FCGI mode" << endl << endl;
-  }
+    else
+    {
+        if ( loglevel >= 1 ) logfile << "Running in FCGI mode" << endl << endl;
+    }
 
 #endif
 
 
-  // Set our maximum image cache size
-  float max_image_cache_size = Environment::getMaxImageCacheSize();
-  imageCacheMapType imageCache;
+    // Set our maximum image cache size
+    float max_image_cache_size = Environment::getMaxImageCacheSize();
+    imageCacheMapType imageCache;
 
 
-  // Get our image pattern variable
-  string filename_pattern = Environment::getFileNamePattern();
+    // Get our image pattern variable
+    string filename_pattern = Environment::getFileNamePattern();
 
 
-  // Get our default quality variable
-  int jpeg_quality = Environment::getJPEGQuality();
+    // Get our default quality variable
+    int jpeg_quality = Environment::getJPEGQuality();
 
 
-  // Get our max CVT size
-  int max_CVT = Environment::getMaxCVT();
+    // Get our max CVT size
+    int max_CVT = Environment::getMaxCVT();
 
 
-  // Get the default number of quality layers to decode
-  int max_layers = Environment::getMaxLayers();
+    // Get the default number of quality layers to decode
+    int max_layers = Environment::getMaxLayers();
 
 
-  // Get the filesystem prefix if any
-  string filesystem_prefix = Environment::getFileSystemPrefix();
+    // Get the filesystem prefix if any
+    string filesystem_prefix = Environment::getFileSystemPrefix();
 
 
-  // Set up our watermark object
-  Watermark watermark( Environment::getWatermark(),
-		       Environment::getWatermarkOpacity(),
-		       Environment::getWatermarkProbability() );
+    // Set up our watermark object
+    Watermark watermark( Environment::getWatermark(),
+                         Environment::getWatermarkOpacity(),
+                         Environment::getWatermarkProbability() );
 
+    // Get our base URL
+    string base_url = Environment::getBaseURL();
 
-  // Print out some information
-  if( loglevel >= 1 ){
-    logfile << "Setting maximum image cache size to " << max_image_cache_size << "MB" << endl;
-    logfile << "Setting filesystem prefix to '" << filesystem_prefix << "'" << endl;
-    logfile << "Setting default JPEG quality to " << jpeg_quality << endl;
-    logfile << "Setting maximum CVT size to " << max_CVT << endl;
-    logfile << "Setting 3D file sequence name pattern to '" << filename_pattern << "'" << endl;
-    if( max_layers != 0 ){
-      logfile << "Setting max quality layers (for supported file formats) to ";
-      if( max_layers < 0 ) logfile << "all layers" << endl;
-      else logfile << max_layers << endl;
-    }
+    // Print out some information
+    if ( loglevel >= 1 )
+    {
+        logfile << "Setting maximum image cache size to " << max_image_cache_size << "MB" << endl;
+        logfile << "Setting filesystem prefix to '" << filesystem_prefix << "'" << endl;
+        logfile << "Setting default JPEG quality to " << jpeg_quality << endl;
+        logfile << "Setting maximum CVT size to " << max_CVT << endl;
+        logfile << "Setting 3D file sequence name pattern to '" << filename_pattern << "'" << endl;
+        if ( max_layers != 0 )
+        {
+            logfile << "Setting max quality layers (for supported file formats) to ";
+            if ( max_layers < 0 ) logfile << "all layers" << endl;
+            else logfile << max_layers << endl;
+        }
 #ifdef HAVE_KAKADU
-    logfile << "Setting up JPEG2000 support via Kakadu SDK" << endl;
+        logfile << "Setting up JPEG2000 support via Kakadu SDK" << endl;
 #endif
-  }
-
-
-  // Try to load our watermark
-  if( watermark.getImage().length() > 0 ){
-    watermark.init();
-    if( loglevel >= 1 ){
-      if( watermark.isSet() ){
-	logfile << "Loaded watermark image '" << watermark.getImage()
-		<< "': setting probability to " << watermark.getProbability()
-		<< " and opacity to " << watermark.getOpacity() << endl;
-      }
-      else{
-	logfile << "Unable to load watermark image '" << watermark.getImage() << "'" << endl;
-      }
     }
-  }
+
+
+    // Try to load our watermark
+    if ( watermark.getImage().length() > 0 )
+    {
+        watermark.init();
+        if ( loglevel >= 1 )
+        {
+            if ( watermark.isSet() )
+            {
+                logfile << "Loaded watermark image '" << watermark.getImage()
+                        << "': setting probability to " << watermark.getProbability()
+                        << " and opacity to " << watermark.getOpacity() << endl;
+            }
+            else
+            {
+                logfile << "Unable to load watermark image '" << watermark.getImage() << "'" << endl;
+            }
+        }
+    }
 
 
 #ifdef HAVE_MEMCACHED
 
-  // Get our list of memcached servers if we have any and the timeout
-  string memcached_servers = Environment::getMemcachedServers();
-  unsigned int memcached_timeout = Environment::getMemcachedTimeout();
+    // Get our list of memcached servers if we have any and the timeout
+    string memcached_servers = Environment::getMemcachedServers();
+    unsigned int memcached_timeout = Environment::getMemcachedTimeout();
 
-  // Create our memcached object
-  Memcache memcached( memcached_servers, memcached_timeout );
-  if( loglevel >= 1 ){
-    if( memcached.connected() ){
-      logfile << "Memcached support enabled. Connected to servers: '" << memcached_servers
-	      << "' with timeout " << memcached_timeout << endl;
+    // Create our memcached object
+    Memcache memcached( memcached_servers, memcached_timeout );
+    if ( loglevel >= 1 )
+    {
+        if ( memcached.connected() )
+        {
+            logfile << "Memcached support enabled. Connected to servers: '" << memcached_servers
+                    << "' with timeout " << memcached_timeout << endl;
+        }
+        else logfile << "Unable to connect to Memcached servers: '" << memcached.error() << "'" << endl;
     }
-    else logfile << "Unable to connect to Memcached servers: '" << memcached.error() << "'" << endl;
-  }
 
 #endif
 
 
 
-  // Add a new line
-  if( loglevel >= 1 ) logfile << endl;
+    // Add a new line
+    if ( loglevel >= 1 ) logfile << endl;
 
 
-  /***********************************************************
-    Check for loadable modules - only if enabled by configure
-  ***********************************************************/
+    /***********************************************************
+      Check for loadable modules - only if enabled by configure
+    ***********************************************************/
 
 #ifdef ENABLE_DL
 
-  map <string, string> moduleList;
-  string modulePath;
-  envpara = getenv( "DECODER_MODULES" );
+    map <string, string> moduleList;
+    string modulePath;
+    envpara = getenv( "DECODER_MODULES" );
 
-  if( envpara ){
+    if ( envpara )
+    {
 
-    modulePath = string( envpara );
+        modulePath = string( envpara );
 
-    // Try to open the module
+        // Try to open the module
 
-    Tokenizer izer( modulePath, "," );
-  
-    while( izer.hasMoreTokens() ){
-      
-      try{
-	string token = izer.nextToken();
-	DSOImage module;
-	module.Load( token );
-	string type = module.getImageType();
-	if( loglevel >= 1 ){
-	  logfile << "Loading external module: " << module.getDescription() << endl;
-	}
-	moduleList[ type ] = token;
-      }
-      catch( const string& error ){
-	if( loglevel >= 1 ) logfile << error << endl;
-      }
+        Tokenizer izer( modulePath, "," );
+
+        while ( izer.hasMoreTokens() )
+        {
+
+            try
+            {
+                string token = izer.nextToken();
+                DSOImage module;
+                module.Load( token );
+                string type = module.getImageType();
+                if ( loglevel >= 1 )
+                {
+                    logfile << "Loading external module: " << module.getDescription() << endl;
+                }
+                moduleList[ type ] = token;
+            }
+            catch ( const string &error )
+            {
+                if ( loglevel >= 1 ) logfile << error << endl;
+            }
+
+        }
+
+        // Tell us what's happened
+        if ( loglevel >= 1 ) logfile << moduleList.size() << " external modules loaded" << endl;
 
     }
-    
-    // Tell us what's happened
-    if( loglevel >= 1 ) logfile << moduleList.size() << " external modules loaded" << endl;
-
-  }
 
 #endif
 
 
 
-  /***********************************************************
-    Set up a signal handler for USR1, TERM, HUP and INT signals
-    - to simplify things, they can all just shutdown the
-      server. We can rely on mod_fastcgi to restart us.
-    - SIGUSR1 and SIGHUP don't exist on Windows, though. 
-  ***********************************************************/
+    /***********************************************************
+      Set up a signal handler for USR1, TERM, HUP and INT signals
+      - to simplify things, they can all just shutdown the
+        server. We can rely on mod_fastcgi to restart us.
+      - SIGUSR1 and SIGHUP don't exist on Windows, though.
+    ***********************************************************/
 
 #ifndef WIN32
-  signal( SIGUSR1, IIPSignalHandler );
-  signal( SIGHUP, IIPSignalHandler );
+    signal( SIGUSR1, IIPSignalHandler );
+    signal( SIGHUP, IIPSignalHandler );
 #endif
 
-  signal( SIGTERM, IIPSignalHandler );
-  signal( SIGINT, IIPSignalHandler );
+    signal( SIGTERM, IIPSignalHandler );
+    signal( SIGINT, IIPSignalHandler );
 
 
 
-  if( loglevel >= 1 ){
-    logfile << endl << "Initialisation Complete." << endl
-	    << "<----------------------------------->"
-	    << endl << endl;
-  }
+    if ( loglevel >= 1 )
+    {
+        logfile << endl << "Initialisation Complete." << endl
+                << "<----------------------------------->"
+                << endl << endl;
+    }
 
 
-  // Set up our request timers and seed our random number generator with the millisecond count from it
-  Timer request_timer;
-  srand( request_timer.getTime() );
+    // Set up our request timers and seed our random number generator with the millisecond count from it
+    Timer request_timer;
+    srand( request_timer.getTime() );
 
-  // Create our tile cache
-  Cache tileCache( max_image_cache_size );
-  Task* task = NULL;
+    // Create our tile cache
+    Cache tileCache( max_image_cache_size );
+    Task *task = NULL;
 
 
 
-  /****************
-    Main FCGI loop
-  ****************/
+    /****************
+      Main FCGI loop
+    ****************/
 
 #ifdef DEBUG
-  int status = true;
-  while( status ){
+    int status = true;
+    while ( status )
+    {
 
-    FILE *f = fopen( "test.jpg", "w" );
-    FileWriter writer( f );
-    status = false;
+        FILE *f = fopen( "test.jpg", "w" );
+        FileWriter writer( f );
+        status = false;
 
 #else
 
-  while( FCGX_Accept_r( &request ) >= 0 ){
+    while ( FCGX_Accept_r( &request ) >= 0 )
+    {
 
-    FCGIWriter writer( request.out );
+        FCGIWriter writer( request.out );
 
 #endif
 
 
-    // Time each request
-    if( loglevel >= 2 ) request_timer.start();
+        // Time each request
+        if ( loglevel >= 2 ) request_timer.start();
 
 
-    // Declare our image pointer here outside of the try scope
-    //  so that we can close the image on exceptions
-    IIPImage *image = NULL;
-    JPEGCompressor jpeg( jpeg_quality );
+        // Declare our image pointer here outside of the try scope
+        //  so that we can close the image on exceptions
+        IIPImage *image = NULL;
+        JPEGCompressor jpeg( jpeg_quality );
 
 
-    // View object for use with the CVT command etc
-    View view;
-    if( max_CVT != -1 ){
-      view.setMaxSize( max_CVT );
-      if( loglevel >= 2 ) logfile << "CVT maximum viewport size set to " << max_CVT << endl;
-    }
-    if( max_layers != 0 ) view.setMaxLayers( max_layers );
+        // View object for use with the CVT command etc
+        View view;
+        if ( max_CVT != -1 )
+        {
+            view.setMaxSize( max_CVT );
+            if ( loglevel >= 2 ) logfile << "CVT maximum viewport size set to " << max_CVT << endl;
+        }
+        if ( max_layers != 0 ) view.setMaxLayers( max_layers );
 
 
 
 
 
-    // Create an IIPResponse object - we use this for the OBJ requests.
-    // As the commands return images etc, they handle their own responses.
-    IIPResponse response;
+        // Create an IIPResponse object - we use this for the OBJ requests.
+        // As the commands return images etc, they handle their own responses.
+        IIPResponse response;
 
 
-    try{
-      
-      // Get the query into a string
+        try
+        {
+
+            // Get the query into a string
 #ifdef DEBUG
-      const string request_string = argv[1];
+            const string request_string = argv[1];
 #else
-      const string request_string = FCGX_GetParam( "QUERY_STRING", request.envp );
+            const string request_string = FCGX_GetParam( "QUERY_STRING", request.envp );
 #endif
 
-      // Check that we actually have a request string
-      if( request_string.length() == 0 ) {
-	throw string( "QUERY_STRING not set" );
-      }
+            // Check that we actually have a request string
+            if ( request_string.length() == 0 )
+            {
+                throw string( "QUERY_STRING not set" );
+            }
 
-      if( loglevel >=2 ){
-	logfile << "Full Request is " << request_string << endl;
-      }
+            if ( loglevel >= 2 )
+            {
+                logfile << "Full Request is " << request_string << endl;
+            }
 
-      
 
-      // Set up our session data object
-      Session session;
-      session.image = &image;
-      session.response = &response;
-      session.view = &view;
-      session.jpeg = &jpeg;
-      session.loglevel = loglevel;
-      session.logfile = &logfile;
-      session.imageCache = &imageCache;
-      session.tileCache = &tileCache;
-      session.out = &writer;
-      session.watermark = &watermark;
-      session.headers.empty();
 
-      // Get certain HTTP headers, such as if_modified_since and the query_string
-      char* header = NULL;
-      if( (header = FCGX_GetParam("HTTP_IF_MODIFIED_SINCE", request.envp)) ){
-	session.headers["HTTP_IF_MODIFIED_SINCE"] = string(header);
-	if( loglevel >= 2 ){
-	  logfile << "HTTP Header: If-Modified-Since: " << session.headers["HTTP_IF_MODIFIED_SINCE"] << endl;
-	}
-      }
-      session.headers["QUERY_STRING"] = request_string;
+            // Set up our session data object
+            Session session;
+            session.image = &image;
+            session.response = &response;
+            session.view = &view;
+            session.jpeg = &jpeg;
+            session.loglevel = loglevel;
+            session.logfile = &logfile;
+            session.imageCache = &imageCache;
+            session.tileCache = &tileCache;
+            session.out = &writer;
+            session.watermark = &watermark;
+            session.headers.empty();
+
+            // Get certain HTTP headers, such as if_modified_since and the query_string
+            char *header = NULL;
+            if ( (header = FCGX_GetParam("HTTP_IF_MODIFIED_SINCE", request.envp)) )
+            {
+                session.headers["HTTP_IF_MODIFIED_SINCE"] = string(header);
+                if ( loglevel >= 2 )
+                {
+                    logfile << "HTTP Header: If-Modified-Since: " << session.headers["HTTP_IF_MODIFIED_SINCE"] << endl;
+                }
+            }
+            session.headers["QUERY_STRING"] = request_string;
+            session.headers["BASE_URL"] = base_url;
+            if ( loglevel >= 2 )
+            {
+                logfile << "HTTP Header: BASE_URL: " << session.headers["BASE_URL"] << endl;
+            }
+            if ( (header = FCGX_GetParam("REQUEST_URI", request.envp)) )
+            {
+                session.headers["REQUEST_URI"] = string(header);
+                if ( loglevel >= 2 )
+                {
+                    logfile << "HTTP Header: REQUEST_URI: " << session.headers["REQUEST_URI"] << endl;
+                }
+            }
 
 
 #ifdef HAVE_MEMCACHED
-      // Check whether this exists in memcached, but only if we haven't had an if_modified_since
-      // request, which should always be faster to send
-      if( !header ){
-	char* memcached_response = NULL;
-	if( (memcached_response = memcached.retrieve( request_string )) ){
-	  writer.putStr( memcached_response, memcached.length() );
-	  writer.flush();
-	  free( memcached_response );
-	  throw( 100 );
-	}
-      }
+            // Check whether this exists in memcached, but only if we haven't had an if_modified_since
+            // request, which should always be faster to send
+            if ( !header )
+            {
+                char *memcached_response = NULL;
+                if ( (memcached_response = memcached.retrieve( request_string )) )
+                {
+                    writer.putStr( memcached_response, memcached.length() );
+                    writer.flush();
+                    free( memcached_response );
+                    throw ( 100 );
+                }
+            }
 #endif
 
 
-      // Parse up the command list
+            // Parse up the command list
 
-      list < pair<string,string> > requests;
-      list < pair<string,string> > :: const_iterator commands;
+            list < pair<string, string> > requests;
+            list < pair<string, string> > :: const_iterator commands;
 
-      Tokenizer izer( request_string, "&" );
-      while( izer.hasMoreTokens() ){
-	pair <string,string> p;
-	string token = izer.nextToken();
-	int n = token.find_first_of( "=" );
-	p.first = token.substr( 0, n );
-	p.second = token.substr( n+1, token.length() );
-	if( p.first.length() && p.second.length() ) requests.push_back( p );
-      }
-
-
-      i = 0;
-      for( commands = requests.begin(); commands != requests.end(); commands++ ){
-
-	string command = (*commands).first;
-	string argument = (*commands).second;
-
-	if( loglevel >= 2 ){
-	  logfile << "[" << i+1 << "/" << requests.size() << "]: Command / Argument is " << command << " : " << argument << endl;
-	  i++;
-	}
-
-	task = Task::factory( command );
-	if( task ) task->run( &session, argument );
-
-	if( !task ){
-	  if( loglevel >= 1 ) logfile << "Unsupported command: " << command << endl;
-	  // Unsupported command error code is 2 2
-	  response.setError( "2 2", command );
-	}
+            Tokenizer izer( request_string, "&" );
+            while ( izer.hasMoreTokens() )
+            {
+                pair <string, string> p;
+                string token = izer.nextToken();
+                int n = token.find_first_of( "=" );
+                p.first = token.substr( 0, n );
+                p.second = token.substr( n + 1, token.length() );
+                if ( p.first.length() && p.second.length() ) requests.push_back( p );
+            }
 
 
-	// Delete our task
-	if( task ){
-	  delete task;
-	  task = NULL;
-	}
+            i = 0;
+            for ( commands = requests.begin(); commands != requests.end(); commands++ )
+            {
 
-      }
+                string command = (*commands).first;
+                string argument = (*commands).second;
 
+                if ( loglevel >= 2 )
+                {
+                    logfile << "[" << i + 1 << "/" << requests.size() << "]: Command / Argument is " << command << " : " << argument << endl;
+                    i++;
+                }
 
+                task = Task::factory( command );
+                if ( task ) task->run( &session, argument );
 
-      ////////////////////////////////////////////////////////
-      ////////// Send out our Errors if necessary ////////////
-      ////////////////////////////////////////////////////////
-
-      /* Make sure something has actually been sent to the client
-	 If no response has been sent by now, we must have a malformed command
-       */
-      if( (!response.imageSent()) && (!response.isSet()) ){
-	// Malformed command syntax error code is 2 1
-	response.setError( "2 1", request_string );
-      }
-
-
-      /* Once we have finished parsing all our OBJ and COMMAND requests
-	 send out our response.
-       */
-      if( response.isSet() ){
-	if( loglevel >= 4 ){
-	  logfile << "---" << endl <<
-	    response.formatResponse() <<
-	    endl << "---" << endl;
-	}
-	if( writer.printf( response.formatResponse().c_str() ) == -1 ){
-	  if( loglevel >= 1 ) logfile << "Error sending IIPResponse" << endl;
-	}
-      }
+                if ( !task )
+                {
+                    if ( loglevel >= 1 ) logfile << "Unsupported command: " << command << endl;
+                    // Unsupported command error code is 2 2
+                    response.setError( "2 2", command );
+                }
 
 
-      ////////////////////////////////////////////////////////
-      ////////// Insert the result into Memcached  ///////////
-      ////////// - Note that we never store errors ///////////
-      //////////   or 304 replies                  ///////////
-      ////////////////////////////////////////////////////////
+                // Delete our task
+                if ( task )
+                {
+                    delete task;
+                    task = NULL;
+                }
+
+            }
+
+
+
+            ////////////////////////////////////////////////////////
+            ////////// Send out our Errors if necessary ////////////
+            ////////////////////////////////////////////////////////
+
+            /* Make sure something has actually been sent to the client
+            If no response has been sent by now, we must have a malformed command
+                 */
+            if ( (!response.imageSent()) && (!response.isSet()) )
+            {
+                // Malformed command syntax error code is 2 1
+                response.setError( "2 1", request_string );
+            }
+
+
+            /* Once we have finished parsing all our OBJ and COMMAND requests
+            send out our response.
+                 */
+            if ( response.isSet() )
+            {
+                if ( loglevel >= 4 )
+                {
+                    logfile << "---" << endl <<
+                            response.formatResponse() <<
+                            endl << "---" << endl;
+                }
+                if ( writer.printf( response.formatResponse().c_str() ) == -1 )
+                {
+                    if ( loglevel >= 1 ) logfile << "Error sending IIPResponse" << endl;
+                }
+            }
+
+
+            ////////////////////////////////////////////////////////
+            ////////// Insert the result into Memcached  ///////////
+            ////////// - Note that we never store errors ///////////
+            //////////   or 304 replies                  ///////////
+            ////////////////////////////////////////////////////////
 
 #ifdef HAVE_MEMCACHED
-      if( memcached.connected() ){
-	Timer memcached_timer;
-	memcached_timer.start();
-	memcached.store( session.headers["QUERY_STRING"], writer.buffer, writer.sz );
-	if( loglevel >= 3 ){
-	  logfile << "Memcached :: stored " << writer.sz << " bytes in "
-		  << memcached_timer.getTime() << " microseconds" << endl;
-	}
-      }
+            if ( memcached.connected() )
+            {
+                Timer memcached_timer;
+                memcached_timer.start();
+                memcached.store( session.headers["QUERY_STRING"], writer.buffer, writer.sz );
+                if ( loglevel >= 3 )
+                {
+                    logfile << "Memcached :: stored " << writer.sz << " bytes in "
+                            << memcached_timer.getTime() << " microseconds" << endl;
+                }
+            }
 #endif
 
 
 
-      //////////////////////////////////////////////////////
-      //////////////// End of try block ////////////////////
-      //////////////////////////////////////////////////////
-    }
+            //////////////////////////////////////////////////////
+            //////////////// End of try block ////////////////////
+            //////////////////////////////////////////////////////
+        }
 
-    /* Use this for sending various HTTP status codes
-     */
-    catch( const int& code ){
+        /* Use this for sending various HTTP status codes
+         */
+        catch ( const int &code )
+        {
 
-      string status;
+            string status;
 
-      switch( code ){
+            switch ( code )
+            {
 
-        case 304:
-	  status = "Status: 304 Not Modified\r\nServer: iipsrv/" + version + "\r\n\r\n";
-	  writer.printf( status.c_str() );
-	  writer.flush();
-          if( loglevel >= 2 ){
-	    logfile << "Sending HTTP 304 Not Modified" << endl;
-	  }
-	  break;
+            case 304:
+                status = "Status: 304 Not Modified\r\nServer: iipsrv/" + version + "\r\n\r\n";
+                writer.printf( status.c_str() );
+                writer.flush();
+                if ( loglevel >= 2 )
+                {
+                    logfile << "Sending HTTP 304 Not Modified" << endl;
+                }
+                break;
 
-        case 100:
-	  if( loglevel >= 2 ){
-	    logfile << "Memcached hit" << endl;
-	  }
-	  break;
+            case 100:
+                if ( loglevel >= 2 )
+                {
+                    logfile << "Memcached hit" << endl;
+                }
+                break;
 
-        default:
-          if( loglevel >= 1 ){
-	    logfile << "Unsupported HTTP status code: " << code << endl << endl;
-	  }
-       }
-    }
+            default:
+                if ( loglevel >= 1 )
+                {
+                    logfile << "Unsupported HTTP status code: " << code << endl << endl;
+                }
+            }
+        }
 
-    /* Catch any errors
-     */
-    catch( const string& error ){
+        /* Catch any errors
+         */
+        catch ( const string &error )
+        {
 
-      if( loglevel >= 1 ){
-	logfile << error << endl << endl;
-      }
+            if ( loglevel >= 1 )
+            {
+                logfile << error << endl << endl;
+            }
 
-      if( response.errorIsSet() ){
-	if( loglevel >= 4 ){
-	  logfile << "---" << endl <<
-	    response.formatResponse() <<
-	    endl << "---" << endl;
-	}
-	if( writer.printf( response.formatResponse().c_str() ) == -1 ){
-	  if( loglevel >= 1 ) logfile << "Error sending IIPResponse" << endl;
-	}
-      }
-      else{
-	/* Display our advertising banner ;-)
-	 */
-	writer.printf( response.getAdvert( version ).c_str() );
-      }
+            if ( response.errorIsSet() )
+            {
+                if ( loglevel >= 4 )
+                {
+                    logfile << "---" << endl <<
+                            response.formatResponse() <<
+                            endl << "---" << endl;
+                }
+                if ( writer.printf( response.formatResponse().c_str() ) == -1 )
+                {
+                    if ( loglevel >= 1 ) logfile << "Error sending IIPResponse" << endl;
+                }
+            }
+            else
+            {
+                /* Display our advertising banner ;-)
+                 */
+                writer.printf( response.getAdvert( version ).c_str() );
+            }
 
-    }
+        }
 
-    /* Default catch
-     */
-    catch( ... ){
+        /* Default catch
+         */
+        catch ( ... )
+        {
 
-      if( loglevel >= 1 ){
-	logfile << "Error: Default Catch: " << endl << endl;
-      }
+            if ( loglevel >= 1 )
+            {
+                logfile << "Error: Default Catch: " << endl << endl;
+            }
 
-      /* Display our advertising banner ;-)
-       */
-      writer.printf( response.getAdvert( version ).c_str() );
+            /* Display our advertising banner ;-)
+             */
+            writer.printf( response.getAdvert( version ).c_str() );
 
-    }
+        }
 
 
-    /* Do some cleaning up etc. here after all the potential exceptions
-       have been handled
-     */
-    if( task ){
-      delete task;
-      task = NULL;
-    }
-    delete image;
-    image = NULL;
-    IIPcount ++;
+        /* Do some cleaning up etc. here after all the potential exceptions
+           have been handled
+         */
+        if ( task )
+        {
+            delete task;
+            task = NULL;
+        }
+        delete image;
+        image = NULL;
+        IIPcount ++;
 
 #ifdef DEBUG
-    fclose( f );
+        fclose( f );
 #endif
 
 
 
-    // How long did this request take?
-    if( loglevel >= 2 ){
-      logfile << "Total Request Time: " << request_timer.getTime() << " microseconds" << endl;
+        // How long did this request take?
+        if ( loglevel >= 2 )
+        {
+            logfile << "Total Request Time: " << request_timer.getTime() << " microseconds" << endl;
+        }
+
+
+        if ( loglevel >= 2 )
+        {
+            logfile << "image closed and deleted" << endl
+                    << "Server count is " << IIPcount << endl << endl;
+
+        }
+
+
+
+        ///////// End of FCGI_ACCEPT while loop or for loop in debug mode //////////
     }
 
 
-    if( loglevel >= 2 ){
-      logfile << "image closed and deleted" << endl
-	      << "Server count is " << IIPcount << endl << endl;
-      
+
+    if ( loglevel >= 1 )
+    {
+        logfile << endl << "Terminating after " << IIPcount << " iterations" << endl;
+        logfile.close();
     }
 
-
-
-    ///////// End of FCGI_ACCEPT while loop or for loop in debug mode //////////
-  }
-
-
-
-  if( loglevel >= 1 ){
-    logfile << endl << "Terminating after " << IIPcount << " iterations" << endl;
-    logfile.close();
-  }
-
-  return( 0 );
+    return ( 0 );
 
 }

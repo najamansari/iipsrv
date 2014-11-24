@@ -699,6 +699,7 @@ void IIIF::run( Session* session, const std::string& argument ){
       request_uri.erase( request_uri.length()-suffix.length()-1, string::npos );
       id = "http://" + session->headers["HTTP_HOST"] + request_uri;
     }
+
     // Escape file name for JSON
     URL json(id);
     string iiif_id = json.Escape();
@@ -727,7 +728,6 @@ void IIIF::run( Session* session, const std::string& argument ){
     if( suffix.length() > 19 ){
       jsonStringStream << ");";
     }
-
     string jsonMime;
     if( suffix.length() > 19 )  jsonMime = "javascript";
     else jsonMime = "json";

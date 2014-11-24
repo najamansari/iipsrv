@@ -38,7 +38,7 @@
 #define LIBMEMCACHED_SERVERS "localhost"
 #define LIBMEMCACHED_TIMEOUT 86400  // 24 hours
 #define INTERPOLATION 1
-
+#define BASE_URL "";
 
 
 #include <string>
@@ -49,6 +49,14 @@ class Environment {
 
 
  public:
+
+  static std::string getBaseURL(){
+    char* envpara = getenv( "BASE_URL" );
+    std::string base_url;
+    if( envpara ) base_url = std::string( envpara );
+    else base_url = BASE_URL;
+    return base_url;
+  }
 
   static int getVerbosity(){
     int loglevel = VERBOSITY;
